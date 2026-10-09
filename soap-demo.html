@@ -1,0 +1,1488 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>在宅薬歴ドラフター</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 三列の臨床ワークベンチ — 患者台帳 / 音声→文字起こし / SOAP下書き・検証・RPA連携 */
+:root{
+  color-scheme: light;
+  --paper:#f5f3ed;
+  --surface:#ffffff;
+  --surface-2:#edeae1;
+  --surface-3:#e3dfd4;
+  --ink:#1a1b20;
+  --ink-2:#4b4d55;
+  --ink-3:#7c7e87;
+  --line:#dbd6c9;
+  --line-2:#c9c3b4;
+  --ai:#1f3a63;
+  --ai-2:#2d5591;
+  --ai-soft:#e3e9f3;
+  --shu:#b1352c;
+  --shu-soft:#f7e5e2;
+  --midori:#2d6a4d;
+  --midori-soft:#e1eee7;
+  --kincha:#87661a;
+  --kincha-soft:#f6ecd6;
+  --shadow:0 1px 2px rgba(26,27,32,.06), 0 8px 24px -16px rgba(26,27,32,.25);
+  --font-display:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",YuMincho,serif;
+  --font-body:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",YuGothic,Meiryo,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:6px;
+  --r-lg:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --paper:#14151a;
+    --surface:#1c1e24;
+    --surface-2:#23262d;
+    --surface-3:#2b2f37;
+    --ink:#e8e6e0;
+    --ink-2:#b2b0a9;
+    --ink-3:#85847e;
+    --line:#32353d;
+    --line-2:#434750;
+    --ai:#9cbcef;
+    --ai-2:#7ba3e4;
+    --ai-soft:#1d2838;
+    --shu:#e9897e;
+    --shu-soft:#38201d;
+    --midori:#83c4a2;
+    --midori-soft:#19291f;
+    --kincha:#d9b45f;
+    --kincha-soft:#2d2514;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --paper:#14151a;
+  --surface:#1c1e24;
+  --surface-2:#23262d;
+  --surface-3:#2b2f37;
+  --ink:#e8e6e0;
+  --ink-2:#b2b0a9;
+  --ink-3:#85847e;
+  --line:#32353d;
+  --line-2:#434750;
+  --ai:#9cbcef;
+  --ai-2:#7ba3e4;
+  --ai-soft:#1d2838;
+  --shu:#e9897e;
+  --shu-soft:#38201d;
+  --midori:#83c4a2;
+  --midori-soft:#19291f;
+  --kincha:#d9b45f;
+  --kincha-soft:#2d2514;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:14px;
+  line-height:1.7;
+  font-feature-settings:"palt" 1;
+}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;text-wrap:balance;margin:0;letter-spacing:.01em}
+button{font-family:inherit;font-size:inherit;color:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ai-2);outline-offset:2px}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:sticky; top:env(safe-area-inset-top, 0px); z-index:30;
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px clamp(16px,2.5vw,26px);
+  background:color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.seal{
+  width:34px;height:34px;flex:none;display:grid;place-items:center;
+  border:1.5px solid var(--shu); color:var(--shu);
+  border-radius:4px; font-family:var(--font-display); font-size:19px; line-height:1;
+  padding-top:1px;
+}
+.brand-name{font-family:var(--font-display);font-size:17px;font-weight:700;letter-spacing:.04em;line-height:1.2}
+.brand-sub{font-size:11px;color:var(--ink-3);letter-spacing:.06em;line-height:1.2}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:100px;border:1px solid var(--line);
+  background:var(--surface-2); font-size:11px; color:var(--ink-2);
+  white-space:nowrap;
+}
+.chip.ok{border-color:color-mix(in srgb,var(--midori) 40%,var(--line));background:var(--midori-soft);color:var(--midori)}
+.chip.warn{border-color:color-mix(in srgb,var(--kincha) 40%,var(--line));background:var(--kincha-soft);color:var(--kincha)}
+.chip.mono{font-family:var(--font-mono);font-size:10.5px}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.dot.live{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.icon-btn{
+  border:1px solid var(--line);background:var(--surface-2);
+  width:30px;height:30px;border-radius:var(--r);cursor:pointer;
+  display:grid;place-items:center;font-size:14px;line-height:1;
+}
+.icon-btn:hover{border-color:var(--line-2)}
+
+/* ---------- layout ---------- */
+.grid{
+  display:grid;
+  grid-template-columns:300px minmax(0,1fr) minmax(0,1.08fr);
+  gap:16px;
+  align-items:start;
+  padding:16px clamp(16px,2.5vw,26px) 8px;
+}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.card-head{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;
+  border-bottom:1px solid var(--line);
+  background:var(--surface-2);
+}
+.card-head h2{font-size:13px;letter-spacing:.06em}
+.card-head .spacer{margin-left:auto}
+.step-no{
+  width:19px;height:19px;flex:none;border-radius:4px;
+  background:var(--ai);color:#fff;font-family:var(--font-mono);font-size:11px;
+  display:grid;place-items:center;line-height:1;
+}
+.step-no.done{background:var(--midori)}
+.card-body{padding:12px}
+.card-body.tight{padding:10px 12px}
+.eyebrow{font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase}
+.hr{height:1px;background:var(--line);margin:10px -12px}
+</style>
+<style>
+/* ---------- patient rail ---------- */
+.patient-pick{display:flex;flex-direction:column;gap:4px}
+.pt{
+  display:flex;align-items:center;gap:8px;text-align:left;width:100%;
+  padding:7px 9px;border-radius:var(--r);border:1px solid transparent;
+  background:transparent;cursor:pointer;
+}
+.pt:hover{background:var(--surface-2)}
+.pt[aria-pressed="true"]{background:var(--ai-soft);border-color:color-mix(in srgb,var(--ai) 30%,var(--line))}
+.pt-av{
+  width:28px;height:28px;flex:none;border-radius:50%;
+  background:var(--surface-3);display:grid;place-items:center;
+  font-family:var(--font-display);font-size:13px;color:var(--ink-2);
+}
+.pt[aria-pressed="true"] .pt-av{background:var(--ai);color:#fff}
+.pt-main{min-width:0}
+.pt-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt-meta{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv{display:grid;grid-template-columns:5.6em minmax(0,1fr);gap:3px 8px;font-size:12.5px}
+.kv dt{color:var(--ink-3);font-size:11.5px;padding-top:2px}
+.kv dd{margin:0;min-width:0}
+.rx{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.rx li{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;
+  padding:6px 8px;border-radius:var(--r);background:var(--surface-2);
+  border-left:2px solid var(--ai);font-size:12px;
+}
+.rx .rx-name{font-weight:600}
+.rx .rx-dose{grid-column:1/-1;color:var(--ink-2);font-size:11.5px}
+.rx .rx-left{
+  font-family:var(--font-mono);font-size:11px;align-self:start;
+  color:var(--shu);white-space:nowrap;
+}
+.labs{display:flex;flex-wrap:wrap;gap:5px}
+.lab{
+  padding:3px 7px;border-radius:var(--r);background:var(--surface-2);
+  border:1px solid var(--line);font-size:11px;
+}
+.lab b{font-family:var(--font-mono);font-weight:500}
+.lab.abn{background:var(--kincha-soft);border-color:color-mix(in srgb,var(--kincha) 35%,var(--line));color:var(--kincha)}
+.prev{font-size:12px;color:var(--ink-2);background:var(--surface-2);padding:8px 10px;border-radius:var(--r);border:1px solid var(--line)}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:7px 13px;border-radius:var(--r);cursor:pointer;
+  border:1px solid var(--line-2);background:var(--surface-2);
+  font-size:12.5px;font-weight:600;transition:background .12s,border-color .12s;
+}
+.btn:hover:not(:disabled){background:var(--surface-3)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--ai);border-color:var(--ai);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--ai-2);border-color:var(--ai-2)}
+.btn.rec{background:var(--shu);border-color:var(--shu);color:#fff}
+.btn.rec:hover:not(:disabled){filter:brightness(1.08)}
+.btn.sm{padding:4px 9px;font-size:11.5px;font-weight:500}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---------- capture ---------- */
+.mode-switch{display:flex;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r)}
+.mode-switch button{
+  border:0;background:transparent;padding:4px 10px;border-radius:4px;
+  cursor:pointer;font-size:11.5px;color:var(--ink-3);
+}
+.mode-switch button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.recorder{
+  display:flex;align-items:center;gap:12px;
+  padding:12px;border:1px dashed var(--line-2);border-radius:var(--r);
+  background:var(--surface-2);
+}
+.recorder.active{border-style:solid;border-color:var(--shu);background:var(--shu-soft)}
+#wave{width:100%;height:40px;display:block}
+.wave-wrap{flex:1;min-width:0}
+.rec-time{font-family:var(--font-mono);font-size:18px;letter-spacing:.02em;flex:none}
+.hint{font-size:11.5px;color:var(--ink-3);margin-top:7px}
+.hint b{color:var(--ink-2);font-weight:600}
+.quick{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.quick button{
+  border:1px solid var(--line);background:var(--surface-2);border-radius:100px;
+  padding:3px 9px;font-size:11px;cursor:pointer;color:var(--ink-2);
+}
+.quick button:hover{border-color:var(--ai);color:var(--ai)}
+textarea.ta{
+  width:100%;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--surface);padding:9px 10px;line-height:1.75;resize:vertical;
+  font-size:13px;
+}
+textarea.ta:focus{border-color:var(--ai-2)}
+.transcript{display:flex;flex-direction:column;gap:7px;max-height:340px;overflow-y:auto}
+.utt{display:grid;grid-template-columns:4.4em minmax(0,1fr);gap:8px;font-size:12.5px;line-height:1.7}
+.utt .sp{
+  font-size:10.5px;letter-spacing:.04em;padding:1px 0;color:var(--ink-3);
+  text-align:right;border-right:2px solid var(--line);padding-right:7px;
+}
+.utt.ph .sp{color:var(--ai);border-color:var(--ai)}
+.utt.pa .sp{color:var(--shu);border-color:var(--shu)}
+.utt.fa .sp{color:var(--kincha);border-color:var(--kincha)}
+.utt .tx{min-width:0;word-break:break-word}
+.utt mark{background:var(--kincha-soft);color:inherit;padding:0 1px;border-radius:2px}
+.meter-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
+.caret::after{content:"\258C";color:var(--ai);animation:pulse 1s steps(2) infinite}
+
+/* ---------- SOAP ---------- */
+.soap{display:flex;flex-direction:column;gap:9px}
+.pane{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.pane-head{
+  display:flex;align-items:center;gap:8px;padding:5px 9px;
+  background:var(--surface-2);border-bottom:1px solid var(--line);
+}
+.pane-letter{
+  font-family:var(--font-display);font-size:14px;font-weight:700;line-height:1;
+  width:20px;height:20px;display:grid;place-items:center;border-radius:4px;color:#fff;flex:none;
+}
+.pane[data-k="s"] .pane-letter{background:#3f6f9e}
+.pane[data-k="o"] .pane-letter{background:#2d6a4d}
+.pane[data-k="a"] .pane-letter{background:#87661a}
+.pane[data-k="p"] .pane-letter{background:#7a3f86}
+.pane-title{font-size:12px;font-weight:600}
+.pane-count{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)}
+.pane textarea{
+  width:100%;border:0;background:transparent;padding:9px 10px;
+  resize:vertical;line-height:1.8;font-size:13px;min-height:72px;display:block;
+}
+.pane textarea:focus{outline:none;background:color-mix(in srgb,var(--ai-soft) 40%,var(--surface))}
+.extras{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.field label{display:block;font-size:11px;color:var(--ink-3);margin-bottom:3px}
+.field input,.field select,.field textarea{
+  width:100%;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--surface);padding:5px 8px;font-size:12.5px;
+}
+.progress{height:3px;background:var(--surface-3);border-radius:100px;overflow:hidden}
+.progress > i{display:block;height:100%;background:var(--ai);width:0;transition:width .25s}
+.gen-stage{display:flex;gap:8px;font-size:11px;color:var(--ink-3);margin-top:6px;flex-wrap:wrap}
+.gen-stage span.on{color:var(--ai);font-weight:600}
+.gen-stage span.done{color:var(--midori)}
+
+/* ---------- verify ---------- */
+.flags{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.flags li{
+  display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;
+  padding:7px 9px;border-radius:var(--r);font-size:12px;
+  background:var(--surface-2);border:1px solid var(--line);
+}
+.flags li .mk{font-size:12px;line-height:1.6;text-align:center}
+.flags li.ok{background:var(--midori-soft);border-color:color-mix(in srgb,var(--midori) 28%,var(--line))}
+.flags li.ok .mk{color:var(--midori)}
+.flags li.warn{background:var(--kincha-soft);border-color:color-mix(in srgb,var(--kincha) 32%,var(--line))}
+.flags li.warn .mk{color:var(--kincha)}
+.flags li.bad{background:var(--shu-soft);border-color:color-mix(in srgb,var(--shu) 32%,var(--line))}
+.flags li.bad .mk{color:var(--shu)}
+.flags b{display:block;font-size:12px}
+.flags small{color:var(--ink-2);font-size:11.5px;display:block}
+.out-box{
+  font-family:var(--font-mono);font-size:11px;line-height:1.65;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);
+  padding:9px 10px;max-height:190px;overflow:auto;white-space:pre;
+  color:var(--ink-2);
+}
+.tabs{display:flex;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);width:fit-content}
+.tabs button{border:0;background:transparent;padding:3px 9px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--ink-3);font-family:var(--font-mono)}
+.tabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:500}
+.path{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);word-break:break-all}
+
+/* ---------- audit log ---------- */
+.logwrap{padding:0 clamp(16px,2.5vw,26px) 18px}
+details.log{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+details.log > summary{
+  cursor:pointer;padding:9px 12px;font-size:12.5px;font-weight:600;
+  display:flex;align-items:center;gap:8px;list-style:none;
+}
+details.log > summary::-webkit-details-marker{display:none}
+details.log > summary::after{content:"\25BE";margin-left:auto;color:var(--ink-3);font-size:11px}
+details.log[open] > summary::after{content:"\25B4"}
+details.log[open] > summary{border-bottom:1px solid var(--line)}
+.logtable{width:100%;border-collapse:collapse;font-size:11.5px}
+.logtable th,.logtable td{text-align:left;padding:5px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.logtable th{font-size:10.5px;letter-spacing:.08em;color:var(--ink-3);font-weight:500;background:var(--surface-2)}
+.logtable td.t{font-family:var(--font-mono);white-space:nowrap;color:var(--ink-2)}
+.logtable tr:last-child td{border-bottom:0}
+.scrollx{overflow-x:auto}
+
+footer{
+  padding:0 clamp(16px,2.5vw,26px) 28px;
+  font-size:11.5px;color:var(--ink-3);line-height:1.8;
+}
+footer .note{
+  border-left:2px solid var(--line-2);padding:2px 0 2px 12px;max-width:72ch;
+}
+footer b{color:var(--ink-2)}
+.toast{
+  position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%) translateY(8px);
+  background:var(--ink);color:var(--paper);padding:8px 16px;border-radius:100px;
+  font-size:12.5px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:1180px){
+  .grid{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}
+  .col-patient{grid-column:1/-1;flex-direction:row;flex-wrap:wrap}
+  .col-patient > .card{flex:1 1 300px}
+}
+@media (max-width:760px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .col-patient{flex-direction:column}
+  .transcript{max-height:none}
+  .rec-time{font-size:15px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="seal" aria-hidden="true">薬</div>
+    <div>
+      <div class="brand-name">在宅薬歴ドラフター</div>
+      <div class="brand-sub">訪問後の音声メモから SOAP 下書きを端末内で作成</div>
+    </div>
+  </div>
+  <div class="chips">
+    <span class="chip ok"><i class="dot live"></i>端末内処理のみ</span>
+    <span class="chip mono" id="chipAsr">ASR: whisper-large-v3-turbo</span>
+    <span class="chip mono" id="chipLlm">LLM: Qwen2.5-14B-Instruct-Q4 / MLX</span>
+    <span class="chip">操作者: 山本 真衣（薬剤師）</span>
+  </div>
+  <button class="icon-btn" id="themeBtn" type="button" title="表示テーマを切り替える" aria-label="表示テーマを切り替える">◐</button>
+</header>
+
+<main class="grid">
+
+  <!-- ============ 患者台帳 ============ -->
+  <section class="col col-patient" aria-label="患者台帳">
+    <div class="card">
+      <div class="card-head"><h2>患者・訪問情報</h2><span class="spacer"></span><span class="eyebrow">架空データ</span></div>
+      <div class="card-body tight">
+        <div class="patient-pick" id="ptList" role="group" aria-label="患者を選ぶ"></div>
+        <div class="hr"></div>
+        <dl class="kv" id="ptInfo"></dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>処方（現在）</h2><span class="spacer"></span><span class="eyebrow">残薬</span></div>
+      <div class="card-body tight"><ul class="rx" id="ptRx"></ul></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>直近検査値</h2><span class="spacer"></span><span class="eyebrow" id="labDate"></span></div>
+      <div class="card-body tight">
+        <div class="labs" id="ptLabs"></div>
+        <div class="hr"></div>
+        <div class="eyebrow" style="margin-bottom:5px">前回薬歴（要約）</div>
+        <div class="prev" id="ptPrev"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>構成・セキュリティ</h2></div>
+      <div class="card-body tight">
+        <dl class="kv">
+          <dt>端末</dt><dd>Mac mini (M6 / 統合メモリ 32GB)</dd>
+          <dt>推論</dt><dd>MLX（Apple Silicon ネイティブ）</dd>
+          <dt>待受</dt><dd class="num">127.0.0.1:7860（院内LANは院内IPのみ許可）</dd>
+          <dt>外部通信</dt><dd>アプリから外向き通信を遮断（許可リスト空）</dd>
+          <dt>音声</dt><dd>文字起こし後に自動削除（既定 7 日）</dd>
+          <dt>監査</dt><dd>全操作を追記専用ログに記録</dd>
+        </dl>
+        <div class="hr"></div>
+        <ul class="flags">
+          <li class="ok"><span class="mk">✓</span><div><b>患者データの外部送信 <span class="num">0</span> 件</b><small id="egressNote">文字起こし・生成・検証はすべてこの端末内で完了</small></div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 音声 → 文字起こし ============ -->
+  <section class="col col-capture" aria-label="音声メモと文字起こし">
+    <div class="card">
+      <div class="card-head">
+        <span class="step-no" id="stepNo1">1</span><h2>訪問時の音声メモ</h2>
+        <span class="spacer"></span>
+        <div class="mode-switch" role="group" aria-label="入力方法">
+          <button type="button" id="modeVoice" aria-pressed="true">音声メモ</button>
+          <button type="button" id="modeText" aria-pressed="false">要点メモ</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="voicePane">
+          <div class="recorder" id="recBox">
+            <button class="btn rec" id="recBtn" type="button"><span class="dot"></span>録音開始</button>
+            <div class="wave-wrap"><canvas id="wave" width="600" height="40" aria-hidden="true"></canvas></div>
+            <div class="rec-time" id="recTime">0:00</div>
+          </div>
+          <p class="hint" id="recHint">
+            訪問の帰り際に、患者宅の前で話した内容をそのまま吹き込みます。<b>マイクが使えない環境では架空患者のサンプル音声で動作します。</b>
+          </p>
+          <div class="btn-row" style="margin-top:9px">
+            <button class="btn sm" id="sampleBtn" type="button">サンプル音声を読み込む（4:42）</button>
+            <button class="btn sm" id="demoAllBtn" type="button">① → ③ を通して実行</button>
+          </div>
+        </div>
+
+        <div id="textPane" hidden>
+          <label for="keyInput" class="eyebrow" style="display:block;margin-bottom:5px">要点メモ（箇条書きでも可）</label>
+          <textarea class="ta" id="keyInput" rows="7" placeholder="例）BP 108/62、脈68 整。ふらつき1週間前から。朝食抜いた日は服薬していない。アムロジピン14錠残。右前腕に紫斑2cm、3日前の打撲。マグミット開始後は毎日排便、センノシド2週間未使用。体重1kg減。次回10/23。"></textarea>
+          <div class="quick" id="quickChips" aria-label="よく使う項目を挿入"></div>
+          <p class="hint">薬剤師が入力した語をそのまま根拠として扱い、下書きに書かれた数値は入力に無ければ<b>要確認</b>として警告します。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="step-no" id="stepNo2">2</span><h2>文字起こし（端末内）</h2>
+        <span class="spacer"></span>
+        <span class="eyebrow" id="asrState">待機中</span>
+      </div>
+      <div class="card-body">
+        <div class="progress" id="asrProg"><i></i></div>
+        <div class="meter-row">
+          <span class="chip mono" id="mAsrTime">所要 —</span>
+          <span class="chip mono" id="mAudio">音声 —</span>
+          <span class="chip mono" id="mRtf">実時間比 —</span>
+          <span class="chip mono" id="mChars">— 文字</span>
+        </div>
+        <div style="margin-top:10px">
+          <div class="transcript" id="transcript" aria-live="polite"></div>
+          <textarea class="ta" id="transEdit" rows="12" hidden></textarea>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn sm" id="editTransBtn" type="button" disabled>テキストで編集</button>
+          <button class="btn sm" id="dictBtn" type="button" disabled>薬剤名辞書で補正</button>
+          <button class="btn primary" id="genBtn" type="button" disabled>SOAP 下書きを作成</button>
+        </div>
+        <p class="hint" id="dictHint">辞書補正は医薬品名・規格・在宅用語（残薬調整／簡易懸濁／服薬カレンダー等）の誤変換を置換します。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SOAP 下書き ============ -->
+  <section class="col col-draft" aria-label="SOAP下書きと連携">
+    <div class="card">
+      <div class="card-head">
+        <span class="step-no" id="stepNo3">3</span><h2>薬歴下書き（SOAP）</h2>
+        <span class="spacer"></span>
+        <span class="eyebrow" id="llmState">未生成</span>
+      </div>
+      <div class="card-body">
+        <div class="progress" id="llmProg"><i></i></div>
+        <div class="gen-stage" id="genStage">
+          <span data-st="pre">前処理</span><span data-st="norm">用語正規化</span><span data-st="infer">LLM 推論</span><span data-st="verify">検証</span>
+          <span class="spacer" style="margin-left:auto"></span>
+          <span class="num" id="tokRate"></span>
+        </div>
+
+        <div class="soap" style="margin-top:11px">
+          <div class="pane" data-k="s">
+            <div class="pane-head"><span class="pane-letter">S</span><span class="pane-title">主観的情報 — 患者・家族の訴え</span><span class="pane-count" id="cS">0字</span></div>
+            <textarea id="soapS" rows="5" spellcheck="false" aria-label="S 主観的情報"></textarea>
+          </div>
+          <div class="pane" data-k="o">
+            <div class="pane-head"><span class="pane-letter">O</span><span class="pane-title">客観的情報 — バイタル・残薬・検査値</span><span class="pane-count" id="cO">0字</span></div>
+            <textarea id="soapO" rows="6" spellcheck="false" aria-label="O 客観的情報"></textarea>
+          </div>
+          <div class="pane" data-k="a">
+            <div class="pane-head"><span class="pane-letter">A</span><span class="pane-title">薬学的評価</span><span class="pane-count" id="cA">0字</span></div>
+            <textarea id="soapA" rows="6" spellcheck="false" aria-label="A 薬学的評価"></textarea>
+          </div>
+          <div class="pane" data-k="p">
+            <div class="pane-head"><span class="pane-letter">P</span><span class="pane-title">指導内容・計画</span><span class="pane-count" id="cP">0字</span></div>
+            <textarea id="soapP" rows="7" spellcheck="false" aria-label="P 指導内容・計画"></textarea>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+        <div class="extras">
+          <div class="field"><label for="exNext">次回訪問予定</label><input type="date" id="exNext"></div>
+          <div class="field"><label for="exFee">算定区分</label>
+            <select id="exFee">
+              <option>在宅患者訪問薬剤管理指導料 1（単一建物診療患者 1 人）</option>
+              <option>在宅患者訪問薬剤管理指導料 2（2〜9 人）</option>
+              <option>在宅患者訪問薬剤管理指導料 3（10 人以上）</option>
+              <option>居宅療養管理指導費（介護保険）</option>
+            </select>
+          </div>
+          <div class="field" style="grid-column:1/-1"><label for="exLeft">残薬調整・処方提案</label><input type="text" id="exLeft" placeholder="例）アムロジピン 14 錠残 → 次回処方日数を 14 日分調整"></div>
+          <div class="field" style="grid-column:1/-1"><label for="exTrace">医師への情報提供（トレーシングレポート下書き）</label><textarea id="exTrace" rows="4"></textarea></div>
+        </div>
+
+        <div class="btn-row" style="margin-top:11px">
+          <button class="btn sm" id="regenBtn" type="button" disabled>再生成</button>
+          <button class="btn sm" id="styleBtn" type="button" disabled>文体を整える（敬体）</button>
+          <span class="spacer" style="margin-left:auto"></span>
+          <button class="btn primary" id="confirmBtn" type="button" disabled>薬剤師が確認して確定</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>下書きの検証</h2><span class="spacer"></span><span class="eyebrow" id="verifySum">—</span></div>
+      <div class="card-body tight"><ul class="flags" id="flags"><li><span class="mk">·</span><div><b>下書きを作成すると検証結果が表示されます</b><small>数値の根拠照合・必須項目・禁止表現・個人識別子を自動チェック</small></div></li></ul></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>薬歴入力 RPA への受け渡し</h2><span class="spacer"></span>
+        <div class="tabs" role="group" aria-label="出力形式">
+          <button type="button" data-fmt="json" aria-pressed="true">JSON</button>
+          <button type="button" data-fmt="csv" aria-pressed="false">CSV</button>
+          <button type="button" data-fmt="txt" aria-pressed="false">貼付用</button>
+        </div>
+      </div>
+      <div class="card-body tight">
+        <div class="out-box" id="outBox">確定前です。</div>
+        <div class="btn-row" style="margin-top:9px">
+          <button class="btn sm" id="copyBtn" type="button">クリップボードにコピー</button>
+          <span class="path" id="outPath">書き出し先: /Users/pharmacy/Handoff/outbox/</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="logwrap">
+  <details class="log" id="logBox">
+    <summary><span>利用ログ（追記専用）</span><span class="chip mono" id="logCount">0 件</span></summary>
+    <div class="scrollx">
+      <table class="logtable">
+        <thead><tr><th>時刻</th><th>操作者</th><th>対象</th><th>操作</th><th>詳細</th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
+
+<footer>
+  <div class="note">
+    <b>これは提案用のデモです。</b>画面・業務フロー・出力仕様を確認していただくために、文字起こしと SOAP 生成をブラウザ内の擬似エンジンで再現しています。納品物では Mac mini 上の Whisper（MLX）と量産ローカル LLM が同じ画面・同じ出力仕様で動作し、音声・テキストは端末外に出ません。登場する患者・処方・検査値はすべて架空です。
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+/* ============================================================
+   在宅薬歴ドラフター — 提案デモ
+   患者・処方・検査値・会話はすべて架空データです。
+   ============================================================ */
+
+const TODAY = "2026-10-09";
+
+const CASES = [
+{
+  id:"tanaka", name:"田中 ハナ", kana:"タナカ ハナ", initial:"田",
+  age:85, sex:"女性", setting:"居宅・独居（長女が週1回訪問）", care:"要介護2",
+  dx:["高血圧症","心房細動","慢性便秘症","慢性腎臓病 G3b"],
+  doctor:"さくら内科クリニック 大島 誠 医師",
+  lastVisit:"2026-09-25（2週間前）",
+  visitTime:"2026年10月9日 14:20〜14:50",
+  audioSec:282,
+  rx:[
+    {name:"アムロジピンOD錠 5mg", dose:"1錠 分1 朝食後", left:"14錠"},
+    {name:"エドキサバン錠 30mg", dose:"1錠 分1 朝食後", left:"3錠"},
+    {name:"酸化マグネシウム錠 330mg", dose:"3錠 分3 毎食後", left:"5錠"},
+    {name:"センノシド錠 12mg", dose:"1錠 就寝前（便秘時）", left:"22錠"}
+  ],
+  labDate:"2026-09-18 採血",
+  labs:[{k:"eGFR",v:"42",u:"mL/min/1.73m²",abn:true},{k:"Cr",v:"1.10",u:"mg/dL",abn:true},
+        {k:"Hb",v:"11.2",u:"g/dL",abn:true},{k:"K",v:"4.2",u:"mEq/L"},{k:"Alb",v:"3.8",u:"g/dL"}],
+  prev:"服薬カレンダーを導入。朝食後分の飲み忘れが週2回程度あり、長女が日曜にセットする運用に変更。血圧138/82mmHg。便秘に対し酸化マグネシウムを開始し、センノシドは頓用へ。",
+  transcript:[
+    ["ph","こんにちは、薬局の山本です。前回から2週間ですね。お変わりないですか。"],
+    ["pa","うん、まあまあね。でも朝起きたときにちょっとふらっとすることがあって。"],
+    ["ph","ふらつきですね。いつごろからですか。"],
+    ["pa","一週間くらい前からかしらね。立ち上がるときに、くらっとする。"],
+    ["ph","転んだりはしていませんか。"],
+    ["pa","それはないわ。壁につかまるから。"],
+    ["ph","血圧を測らせてください。……上が108、下が62です。前回は138の82でしたから、だいぶ下がっていますね。脈は68で、リズムの乱れはないようです。"],
+    ["pa","そんなに下がってるの。"],
+    ["ph","お薬カレンダーを見せていただけますか。……アムロジピンが14錠、エドキサバンが3錠残っていますね。"],
+    ["pa","ごめんなさいね、朝ごはんを食べない日があって、そういう日は飲まないでいたの。食後って書いてあるから。"],
+    ["ph","朝食を抜いた日はお薬も飲んでいなかったということですね。アムロジピンとエドキサバンは食事と関係なく飲んでいただいて大丈夫です。特にエドキサバンは血液を固まりにくくするお薬なので、飲み忘れると脳梗塞のリスクが上がります。"],
+    ["pa","わかったわ。食べなくても飲んでいいのね。"],
+    ["ph","腕に紫色のあざがありますね。これはいつごろですか。"],
+    ["pa","三日前にタンスにぶつけたの。痛みはないわ。"],
+    ["ph","大きさは2センチくらいですね。あざが広がってきたり、鼻血や歯ぐきからの出血、黒い便が出るようなことがあればすぐにご連絡ください。"],
+    ["ph","お通じはいかがですか。"],
+    ["pa","マグミットを飲んでから毎日出るようになったわ。センノシドはここ二週間使っていない。"],
+    ["ph","下剤を使わずに済んでいるんですね。……体温は36.4度、酸素飽和度は97%です。お食事はとれていますか。"],
+    ["pa","朝は食べないことが多いけど、昼と夜は食べてる。"],
+    ["ph","体重はいかがですか。"],
+    ["pa","先月より1キロくらい減ったかな。"],
+    ["ph","わかりました。血圧が下がっていることを先生に報告させていただきますね。次回は2週間後の10月23日に伺います。"],
+    ["pa","お願いします。"]
+  ],
+  soap:{
+    s:"・1週間前から起床時および立ち上がり時にふらつきが出現。転倒はなく、壁につかまって対応している。\n・朝食を摂らない日は「食後と書いてあるから」とアムロジピンおよびエドキサバンの服用を自己判断で中止していた。\n・右前腕の紫斑は3日前にタンスにぶつけたものと説明。疼痛・拡大はない。\n・酸化マグネシウム開始後は毎日排便があり、センノシドは2週間使用していない。\n・体重が先月より約1kg減少した自覚あり。朝食の欠食が続いている。",
+    o:"・訪問：2026年10月9日 14:20〜14:50／居宅・独居\n・バイタル：血圧108/62mmHg（前回138/82mmHg）、脈拍68回/分・不整なし、体温36.4℃、SpO2 97%\n・残薬：アムロジピンOD錠5mg 14錠、エドキサバン錠30mg 3錠（服薬カレンダー内に残存）\n・紫斑：右前腕に約2cm大、1か所。活動性出血・鼻出血・歯肉出血・黒色便なし\n・検査値（2026年9月18日採血）：eGFR 42mL/min/1.73m²、Cr 1.10mg/dL、Hb 11.2g/dL\n・服薬管理：服薬カレンダー（長女が週1回セット）。朝食欠食日に服薬中断あり",
+    a:"・血圧が前回より30/20mmHg低下しており、起床時・起立時のふらつきにはアムロジピンによる起立性低血圧の関与が疑われる。85歳・独居であり転倒および骨折のリスクが高い状態と考える。\n・朝食欠食を理由とする自己判断での服薬中断が確認された。エドキサバンの間欠的な中断は脳梗塞再発のリスクを高めるため、服用と食事の関係について理解が不十分であった。\n・紫斑は打撲による限局性のもので、現時点で抗凝固薬の過量を示唆する所見は乏しいが、腎機能低下例であり出血傾向の継続観察が必要。\n・酸化マグネシウムは排便コントロールに有効でセンノシドは不要となっているが、eGFR 42mL/min/1.73m²の腎機能低下があり高マグネシウム血症に注意を要する。悪心・嘔吐・徐脈・筋力低下の有無を継続して確認する。\n・約1kg/月の体重減少は朝食欠食による摂取量低下が主因と考えられ、栄養状態の評価が必要。",
+    p:"・アムロジピンOD錠5mgおよびエドキサバン錠30mgは食事の影響を受けないため、朝食を摂らない日も服用するよう説明。服薬カレンダーに「食事と関係なく飲む」と明記した。\n・血圧低下とふらつきについて、アムロジピンの減量または中止の検討を依頼するトレーシングレポートを主治医へ本日送付する。\n・次回訪問までの家庭血圧を朝・就寝前に測定し記録用紙へ記入するよう依頼。長女へも電話で同内容を伝達する。\n・出血傾向のモニタリング：紫斑の拡大、鼻出血、歯肉出血、黒色便があれば薬局へ連絡するよう指導した。\n・酸化マグネシウムは継続。次回採血時の血清マグネシウム値測定の検討を主治医へ提案する。センノシドは頓用のまま継続。\n・食事摂取量と体重は次回訪問時に再評価し、改善がない場合はケアマネジャーへ情報提供する。\n・次回訪問：2026年10月23日（2週間後）"
+  },
+  extras:{
+    next:"2026-10-23",
+    fee:0,
+    left:"アムロジピンOD錠5mg 14錠・エドキサバン錠30mg 3錠残 → 次回処方で日数調整を提案",
+    trace:"平素より大変お世話になっております。本日（2026年10月9日）の訪問にて血圧108/62mmHgと前回（138/82mmHg）より低下し、1週間前より起床時・起立時のふらつきを認めました。あわせて、朝食欠食日にアムロジピンおよびエドキサバンの服用を自己中断していたことを確認しております。起立性低血圧による転倒リスクを考慮し、アムロジピンOD錠5mgの減量または中止をご検討いただけますでしょうか。服用は食事の影響を受けないことを本人へ説明し、服薬カレンダーに明記いたしました。また酸化マグネシウム服用中でeGFR 42mL/min/1.73m²であり、次回採血時に血清マグネシウム値のご測定をご検討ください。右前腕の紫斑は3日前の打撲によるもので、出血傾向のモニタリングを継続いたします。"
+  },
+  checks:[
+    {t:"warn", title:"eGFR 42 は 2026年9月18日の検査値", body:"本日の実測値ではありません。A 欄に出典日を明記済みです。"},
+    {t:"warn", title:"「転倒および骨折のリスクが高い」は評価の強い表現", body:"85歳・独居・血圧低下という根拠を併記しています。確定的な診断表現ではないか確認してください。"}
+  ]
+},
+{
+  id:"sato", name:"佐藤 健一", kana:"サトウ ケンイチ", initial:"佐",
+  age:72, sex:"男性", setting:"サービス付き高齢者向け住宅", care:"要介護1",
+  dx:["2型糖尿病","脳梗塞後遺症（左上下肢麻痺）","逆流性食道炎"],
+  doctor:"みどり台クリニック 井上 由季 医師",
+  lastVisit:"2026-10-02（1週間前）",
+  visitTime:"2026年10月9日 10:05〜10:40",
+  audioSec:313,
+  rx:[
+    {name:"メトホルミン塩酸塩錠 250mg", dose:"2錠 分2 朝夕食後", left:"6錠"},
+    {name:"インスリン グラルギン注", dose:"10単位 朝", left:"2本"},
+    {name:"クロピドグレル錠 75mg", dose:"1錠 分1 朝食後", left:"2錠"},
+    {name:"ランソプラゾールOD錠 15mg", dose:"1錠 分1 朝食後", left:"3錠"}
+  ],
+  labDate:"2026-09-25 採血",
+  labs:[{k:"HbA1c",v:"6.4",u:"%",abn:true},{k:"eGFR",v:"51",u:"mL/min/1.73m²",abn:true},
+        {k:"Cr",v:"1.05",u:"mg/dL"},{k:"Hb",v:"12.1",u:"g/dL"},{k:"Alb",v:"3.5",u:"g/dL"}],
+  prev:"血糖自己測定の手技を確認。空腹時血糖は110〜130mg/dLで安定。嚥下は良好で剤形変更は不要と判断。体重60.5kg。",
+  transcript:[
+    ["ph","佐藤さん、こんにちは。薬局の山本です。体調はいかがですか。"],
+    ["pa","朝方にね、汗がすごく出て、手が震えることがあるんだ。"],
+    ["ph","それは何時くらいですか。"],
+    ["pa","四時か五時くらい。起きたら枕が濡れてる。週に二、三回かな。"],
+    ["ph","そのときに血糖は測りましたか。"],
+    ["pa","測ってない。朝ごはんの前に測ったら、こないだは68だった。"],
+    ["ph","68は低いですね。ふだんはどのくらいですか。"],
+    ["pa","110から130くらい。"],
+    ["ph","お食事の量はいかがですか。"],
+    ["fa","先週から半分くらいしか召し上がらないんです。昼食は三分の一くらいで。"],
+    ["ph","食事量が減っているのに、インスリンは同じ10単位で打っていますか。"],
+    ["pa","うん、変えてない。"],
+    ["ph","メトホルミンも朝晩2錠ずつですね。残薬を確認させてください。……メトホルミンが6錠、クロピドグレルが2錠残っていますね。"],
+    ["fa","錠剤が大きいと、むせることがあって。"],
+    ["ph","どのお薬でむせますか。"],
+    ["fa","メトホルミンです。ランソプラゾールは口の中で溶けるので大丈夫そうです。"],
+    ["ph","血圧と体温を測りますね。……血圧132の76、脈80、体温36.2度、酸素飽和度98%です。体重はいかがですか。"],
+    ["fa","58.2キロです。先月は60.5キロでした。"],
+    ["ph","2キロ以上減っていますね。血糖測定の手技も見せていただけますか。……穿刺の前に手を洗っていますね。消毒綿で拭いてから、乾く前に刺していますね。"],
+    ["pa","だめかい。"],
+    ["ph","アルコールが乾いてから刺したほうが、値が正確に出ます。"],
+    ["ph","低血糖のときに使うブドウ糖は手元にありますか。"],
+    ["fa","居室の引き出しに入っています。"],
+    ["ph","わかりました。先生にご報告して、インスリンの単位数と、メトホルミンの剤形について相談させていただきます。次回は10月16日に伺います。"]
+  ],
+  soap:{
+    s:"・早朝4〜5時の発汗と手指振戦が週2〜3回あり、起床時に寝具が濡れている。\n・空腹時の自己測定で68mg/dL。普段は110〜130mg/dLと認識している。\n・食事摂取量が先週より半分程度に低下、昼食は3分の1程度（施設職員より）。\n・メトホルミン錠でむせることがある。ランソプラゾールOD錠は口腔内で崩壊するため問題なく服用できている（施設職員より）。\n・低血糖時のブドウ糖は居室の引き出しに常備している（施設職員より）。",
+    o:"・訪問：2026年10月9日 10:05〜10:40／サービス付き高齢者向け住宅\n・バイタル：血圧132/76mmHg、脈拍80回/分、体温36.2℃、SpO2 98%\n・体重：58.2kg（前月60.5kg、1か月で2.3kg減少）\n・残薬：メトホルミン塩酸塩錠250mg 6錠、クロピドグレル錠75mg 2錠\n・SMBG：空腹時68mg/dL（本人測定）。普段の自己申告値110〜130mg/dL\n・インスリン グラルギン 10単位 朝（食事摂取量低下後も変更なし）\n・手技確認：穿刺前の手洗いは実施。消毒用アルコールの乾燥を待たずに穿刺している\n・検査値（2026年9月25日採血）：HbA1c 6.4%、eGFR 51mL/min/1.73m²、Cr 1.05mg/dL",
+    a:"・早朝の発汗および手指振戦と空腹時68mg/dLは、夜間から早朝にかけての低血糖を示唆する。食事摂取量が半減した状態でインスリン グラルギンが10単位のまま継続されており、相対的な過量投与が疑われる。\n・HbA1c 6.4%は、72歳でインスリンを使用し食事摂取が不安定な患者としては低く、重症低血糖のリスクを踏まえると血糖管理目標の見直しが必要と考える。\n・1か月で2.3kgの体重減少があり、食事摂取量の低下と合わせて栄養状態の悪化が疑われる。\n・メトホルミンは嚥下困難により服用の確実性が低下している。加えて食事摂取量が低下した状態での継続は乳酸アシドーシスの観点からも留意が必要であり、eGFR 51mL/min/1.73m²であることから用量上限にも配慮する。\n・消毒用アルコールの乾燥前に穿刺する手技は測定値の誤差要因となり、実測より低値を示す可能性がある。本日の68mg/dLについても測定手技の影響を完全には否定できない。",
+    p:"・インスリン グラルギンの減量および食事摂取量に応じた調整について、本日トレーシングレポートで主治医へ報告・相談する。\n・メトホルミン錠250mgの嚥下困難について、剤形変更（粉砕・簡易懸濁の可否確認、または他剤への変更）を主治医へ提案する。粉砕および簡易懸濁の適否は次回訪問までに薬局で確認する。\n・血糖自己測定は消毒用アルコールが完全に乾いてから穿刺するよう本人へ実演して説明した。施設職員にも同内容を伝達した。\n・早朝の低血糖が疑われるため、就寝前および可能な範囲で早朝（4〜5時）の血糖測定を施設職員へ依頼した。\n・低血糖時の対応（ブドウ糖10g内服、15分後に再測定）を記載した手順書を居室に掲示し、施設職員へ口頭で説明した。\n・食事摂取量と体重は施設記録から継続して把握し、2kg以上の減少が続く場合はケアマネジャーおよび管理栄養士へ情報提供する。\n・次回訪問：2026年10月16日（低血糖の経過確認のため1週間後に短縮）"
+  },
+  extras:{
+    next:"2026-10-16",
+    fee:1,
+    left:"メトホルミン 6錠・クロピドグレル 2錠残 → 嚥下困難による服用困難の可能性、剤形変更とあわせて要確認",
+    trace:"平素より大変お世話になっております。本日（2026年10月9日）の訪問にて、早朝4〜5時の発汗および手指振戦が週2〜3回あること、空腹時自己測定値が68mg/dLであったことを確認いたしました。先週より食事摂取量が半分程度（昼食は3分の1程度）に低下しておりますが、インスリン グラルギンは10単位のまま継続されております。夜間から早朝の低血糖が疑われますため、単位数の減量および食事量に応じた調整についてご検討いただけますでしょうか。あわせて、メトホルミン塩酸塩錠250mgについて嚥下時のむせがあり服用の確実性が低下しております。剤形変更の可否についてもご相談させてください。体重は1か月で2.3kg減少（60.5kg→58.2kg）しております。血糖自己測定の手技（アルコール乾燥後の穿刺）は本日指導済みです。"
+  },
+  checks:[
+    {t:"warn", title:"SMBG 68mg/dL は本人の自己測定値", body:"測定手技の問題を併記しています。確定値として扱わないでください。"},
+    {t:"warn", title:"「普段は110〜130mg/dL」は本人の自己申告", body:"測定記録との照合が未了です。施設の記録を確認してください。"}
+  ]
+},
+{
+  id:"suzuki", name:"鈴木 ヨシ子", kana:"スズキ ヨシコ", initial:"鈴",
+  age:90, sex:"女性", setting:"居宅・長女と同居", care:"要介護2",
+  dx:["腰椎圧迫骨折後","アルツハイマー型認知症（中等度）","不眠症","慢性便秘症"],
+  doctor:"川口整形外科 川口 聡 医師",
+  lastVisit:"2026-09-25（2週間前）",
+  visitTime:"2026年10月9日 16:10〜16:45",
+  audioSec:268,
+  rx:[
+    {name:"アセトアミノフェン錠 500mg", dose:"3錠 分3 毎食後", left:"28錠"},
+    {name:"ロキソプロフェンNaテープ 100mg", dose:"1日1回1枚 腰部", left:"4枚"},
+    {name:"ブロチゾラム錠 0.25mg", dose:"1錠 就寝前", left:"4錠"},
+    {name:"酸化マグネシウム錠 330mg", dose:"2錠 分2 朝夕食後", left:"8錠"}
+  ],
+  labDate:"2026-09-12 採血",
+  labs:[{k:"eGFR",v:"58",u:"mL/min/1.73m²",abn:true},{k:"Cr",v:"0.78",u:"mg/dL"},
+        {k:"Alb",v:"3.6",u:"g/dL"},{k:"Hb",v:"11.8",u:"g/dL"},{k:"HDS-R",v:"15",u:"点（8月）",abn:true}],
+  prev:"腰痛は体動時 NRS 5/10。ブロチゾラムは3か月前より継続。長女が朝夕の服薬をセット。貼付薬は腰部1枚で指導済み。",
+  transcript:[
+    ["ph","鈴木さん、こんにちは。薬局の山本です。腰の痛みはいかがですか。"],
+    ["pa","……ああ、あんた誰だったかしら。"],
+    ["fa","薬局の方よ。お母さん、腰はどう。"],
+    ["pa","動くときは痛いね。じっとしてれば平気。"],
+    ["ph","10段階でいうと、いまはどのくらいですか。"],
+    ["pa","四くらいかね。"],
+    ["ph","夜は眠れていますか。"],
+    ["fa","夜中に二回くらい起きてトイレに行くんですけど、三日前にふらついて廊下で尻もちをついたんです。"],
+    ["ph","お怪我はありませんでしたか。"],
+    ["fa","どこも打ってはいなくて、痛みも増えていないみたいです。"],
+    ["ph","ブロチゾラムは毎晩飲んでいますか。"],
+    ["fa","寝る前に飲ませています。先生に出してもらってから三か月くらいになります。"],
+    ["ph","湿布はどこに貼っていますか。"],
+    ["fa","腰に一枚と、膝に一枚。朝に貼って、夜に剥がしています。"],
+    ["ph","一日に二枚お使いですね。処方は一日一回一枚になっていますので、二枚だと計算が合わなくなります。"],
+    ["fa","そうなんですか。膝も痛いと言うので貼っていました。"],
+    ["ph","アセトアミノフェンは毎食後に飲めていますか。"],
+    ["fa","昼は私が仕事でいないので、飲んでいないことが多いです。"],
+    ["ph","残薬を確認させてください。……アセトアミノフェンが28錠、ロキソプロフェンテープが4枚残っていますね。"],
+    ["ph","血圧を測ります。……126の70、脈72、体温36.5度です。お通じはいかがですか。"],
+    ["fa","二日に一回くらいです。"],
+    ["ph","食欲はいかがですか。"],
+    ["fa","変わりません。よく食べます。"],
+    ["ph","介護はお一人でされていますか。"],
+    ["fa","夜中に起きるので、私も寝不足で。"],
+    ["ph","ケアマネジャーさんに夜間の対応を相談しておきますね。次回は10月23日に伺います。"]
+  ],
+  soap:{
+    s:"・体動時の腰痛あり、NRS 4/10。安静時の疼痛はない。\n・夜間に2回程度覚醒しトイレへ移動している。3日前に自宅廊下でふらつき尻もちをついた（長女より）。打撲部位の疼痛増加はない。\n・アセトアミノフェンの昼食後分は、長女の就労による日中不在のため服用できていないことが多い（長女より）。\n・ロキソプロフェンNaテープを腰部と膝部に1日2枚使用していた（長女より）。\n・排便は2日に1回。食欲の変化はない。\n・長女に夜間の介護による睡眠不足がある。本日の訪問時、本人は薬剤師を認識できなかった。",
+    o:"・訪問：2026年10月9日 16:10〜16:45／居宅・長女と同居／要介護2\n・バイタル：血圧126/70mmHg、脈拍72回/分・整、体温36.5℃\n・残薬：アセトアミノフェン錠500mg 28錠、ロキソプロフェンNaテープ100mg 4枚\n・貼付部位：腰部・膝部の2か所（処方は1日1回1枚）\n・転倒：3日前、自宅廊下、外傷なし、疼痛の増加なし\n・検査値（2026年9月12日採血）：eGFR 58mL/min/1.73m²、Cr 0.78mg/dL、Alb 3.6g/dL、Hb 11.8g/dL\n・HDS-R 15点（2026年8月実施）\n・服薬管理：長女が朝・夕にセット。昼分は管理されていない\n・ブロチゾラム錠0.25mg 就寝前を約3か月継続",
+    a:"・夜間覚醒時のふらつきと3日前の転倒には、ブロチゾラムの持ち越し効果の関与が疑われる。90歳・認知症があり、ベンゾジアゼピン受容体作動薬の長期連用は転倒・骨折および認知機能低下のリスクを高めるため、減量または中止の検討が必要と考える。腰椎圧迫骨折の既往があり再骨折のリスクも高い。\n・ロキソプロフェンNaテープを処方量の2倍（1日2枚）使用しており、処方日数と実使用量が乖離している。経皮吸収型であっても全身性の有害事象（腎機能低下、消化器症状）は否定できず、eGFR 58mL/min/1.73m²であることを踏まえ使用枚数の是正が必要。残薬4枚は次回処方日前に不足する見込み。\n・アセトアミノフェンの昼食後分が継続して服用できておらず（残薬28錠）、日中の疼痛コントロールが不十分な可能性がある。1日3回から1日2回への変更、または服用タイミングの見直しが有効と考えられる。\n・長女の睡眠不足と介護負担が蓄積しており、介護力の低下は服薬管理の質に直結するため、介護サービスの調整が必要。",
+    p:"・ブロチゾラム錠0.25mgの減量または中止、および夜間頻尿の評価について、本日トレーシングレポートで主治医へ報告する。中止時の反跳性不眠に備え漸減が望ましいことを併記する。\n・転倒予防として、夜間のトイレ動線（寝室・廊下）への足元灯の設置とポータブルトイレの検討を長女へ提案した。ケアマネジャーへも情報提供する。\n・ロキソプロフェンNaテープは1日1枚（腰部）とし、膝部の疼痛は主治医へ相談するよう長女へ説明した。貼付部位と枚数を記録する用紙を渡した。\n・アセトアミノフェンの服用タイミングについて、1日2回（朝・夕）への変更可否を主治医へ確認する。当面は朝・夕の確実な服用を優先するよう長女へ依頼した。\n・疼痛は次回訪問時にNRSで再評価する。体動時NRS 6以上が続く場合は薬局へ連絡するよう依頼した。\n・長女の介護負担についてケアマネジャーへ連絡し、夜間対応を含むサービス調整を依頼する。\n・次回訪問：2026年10月23日（2週間後）"
+  },
+  extras:{
+    next:"2026-10-23",
+    fee:0,
+    left:"アセトアミノフェン 28錠残（昼分の未服用）／テープは1日2枚使用で残4枚、次回処方前に不足見込み",
+    trace:"平素より大変お世話になっております。本日（2026年10月9日）の訪問にて、3日前に自宅廊下での転倒（外傷なし）があったことを確認いたしました。夜間に2回程度の覚醒があり、ブロチゾラム錠0.25mgを約3か月継続しておられます。持ち越し効果による転倒リスクを考慮し、減量または中止をご検討いただけますでしょうか。中止時の反跳性不眠に備え漸減が望ましいと考えております。また、ロキソプロフェンNaテープ100mgを腰部・膝部に1日2枚使用されていたため、本日1日1枚へ是正し、膝部の疼痛については先生へご相談するようご家族へお伝えしております。アセトアミノフェン錠500mgの昼食後分は日中のご家族不在により服用できておらず（残28錠）、1日2回への変更可否についてもご検討いただけますと幸いです。"
+  },
+  checks:[
+    {t:"warn", title:"NRS 4/10 は認知症のある患者からの聴取値", body:"長女の観察所見との併記を推奨します。"},
+    {t:"bad", title:"処方量と実使用量の乖離（テープ 1日2枚）", body:"処方日数と残数が合いません。医師への確認が必要です。"}
+  ]
+}
+];
+
+/* 入力テキストから下書きを合成するときに使う薬学的ルール（抜粋） */
+const KB = [
+  {re:/エドキサバン|リクシアナ|アピキサバン|ワルファリン|抗凝固/, a:"抗凝固薬を服用しており、服薬中断は脳梗塞再発のリスクを高める。あわせて出血傾向の継続観察が必要。", p:"紫斑の拡大、鼻出血、歯肉出血、黒色便があれば薬局へ連絡するよう指導した。"},
+  {re:/酸化マグネシウム|マグミット/, a:"酸化マグネシウムを服用しており、腎機能低下例では高マグネシウム血症に注意を要する。悪心・嘔吐・徐脈・筋力低下の有無を確認する。", p:"次回採血時の血清マグネシウム値測定の検討を主治医へ提案する。"},
+  {re:/ブロチゾラム|ゾルピデム|エチゾラム|ベンゾ|睡眠薬|眠剤/, a:"ベンゾジアゼピン受容体作動薬の連用は、高齢者において転倒・骨折および認知機能低下のリスクを高めるため、減量または中止の検討が必要。", p:"睡眠薬の減量または中止について主治医へ報告する。中止時の反跳性不眠に備え漸減が望ましい旨を併記する。"},
+  {re:/インスリン|グラルギン|低血糖/, a:"インスリン使用下で食事摂取量が変動する場合、相対的過量投与による低血糖のリスクがある。", p:"低血糖時の対応（ブドウ糖10g内服、15分後に再測定）を説明し、就寝前および早朝の血糖測定を依頼した。"},
+  {re:/メトホルミン|メトグルコ/, a:"メトホルミンは腎機能および食事摂取量の低下時に乳酸アシドーシスのリスクが高まるため、用量と継続の可否を検討する必要がある。", p:"メトホルミンの用量について主治医へ確認する。"},
+  {re:/テープ|湿布|貼付|パップ/, a:"経皮吸収型NSAIDsは全身性の有害事象（腎機能低下、消化器症状）を否定できず、使用枚数と貼付部位の確認が必要。", p:"貼付部位と枚数を記録する用紙を渡し、処方どおりの枚数で使用するよう説明した。"},
+  {re:/むせ|嚥下|飲み込|つかえ|粉砕|簡易懸濁/, a:"嚥下機能の低下により服用の確実性が低下しており、剤形変更の検討が必要。", p:"剤形変更（粉砕・簡易懸濁の可否、OD錠や液剤への変更）を主治医へ提案する。"},
+  {re:/ふらつ|めまい|立ちくら|転倒|転んだ|尻もち/, a:"ふらつきおよび転倒の既往があり、降圧薬・睡眠薬・抗コリン薬など転倒リスクに関与する薬剤の見直しが必要。", p:"夜間動線への足元灯設置など環境面の転倒予防を提案し、ケアマネジャーへ情報提供する。"},
+  {re:/飲み忘れ|飲んでいない|中断|自己判断|残っ/, a:"自己判断による服薬中断または飲み忘れが確認され、アドヒアランスの低下がみられる。", p:"服薬カレンダーへの記載内容を見直し、服用タイミングを本人および介護者へ再説明した。"},
+  {re:/便秘|お通じ|排便|下剤/, a:"排便状況は緩下剤の効果判定に有用であり、現行の用量で良好にコントロールされているか評価した。", p:"排便回数の記録を継続し、3日以上排便がない場合は薬局へ連絡するよう依頼した。"},
+  {re:/体重|痩せ|食欲|食事量|摂取量/, a:"体重および食事摂取量の低下は栄養状態の悪化を示唆し、薬物動態にも影響するため継続評価が必要。", p:"食事摂取量と体重を継続して把握し、減少が続く場合はケアマネジャー・管理栄養士へ情報提供する。"},
+  {re:/紫斑|あざ|出血|鼻血|歯ぐき|黒い便|黒色便/, a:"皮下出血などの出血傾向を示す所見があり、抗血栓薬使用下では継続観察が必要。", p:"出血傾向のモニタリング項目を本人・介護者へ説明した。"},
+  {re:/痛み|疼痛|NRS|腰痛|膝/, a:"疼痛の強度と頻度を評価し、鎮痛薬の用量・投与間隔が適切か検討した。", p:"疼痛は次回訪問時にNRSで再評価する。悪化時は薬局へ連絡するよう依頼した。"},
+  {re:/介護負担|寝不足|家族|娘|息子|ケアマネ/, a:"介護者の負担増大は服薬管理の質に直結するため、介護サービスの調整を含めた支援が必要。", p:"介護負担についてケアマネジャーへ連絡し、サービス調整を依頼する。"}
+];
+
+const QUICK = [
+  ["血圧","BP /mmHg、"],["脈拍","脈 回/分 整、"],["体温","BT ℃、"],["SpO2","SpO2 %、"],
+  ["残薬","残薬：（薬剤名） 錠、"],["飲み忘れ","飲み忘れ：（頻度・理由）、"],
+  ["ふらつき","ふらつき：（時期・状況）、"],["便通","排便：（回数）、"],
+  ["食事量","食事量：（変化）、"],["体重","体重 kg（前月 kg）、"],
+  ["出血・紫斑","紫斑：（部位・大きさ）、"],["嚥下","嚥下：（むせの有無）、"],
+  ["疼痛NRS","疼痛 NRS /10、"],["次回訪問","次回訪問 2026/ / 、"]
+];
+</script>
+<script>
+"use strict";
+/* ---------- 小さなユーティリティ ---------- */
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pad = (n) => String(n).padStart(2, "0");
+const mmss = (sec) => Math.floor(sec / 60) + ":" + pad(Math.floor(sec % 60));
+const SPK = {ph:"薬剤師", pa:"患者", fa:"家族・職員"};
+const PTID = {tanaka:"PT-0142", sato:"PT-0087", suzuki:"PT-0231"};
+const OPERATOR = {id:"PH-003", name:"山本 真衣"};
+
+/* 文字起こしの誤変換を再現する対（正 → ASR 生出力） */
+const RAW_ERRORS = [
+  ["アムロジピン","アムロジビン"],["エドキサバン","エドキサパン"],["マグミット","マグ ミット"],
+  ["センノシド","センノ市"],["酸素飽和度","酸素火和度"],["メトホルミン","メトホル民"],
+  ["ランソプラゾール","ランソプラ ゾール"],["クロピドグレル","クロピドグレール"],
+  ["ブロチゾラム","ブロチ ゾラム"],["ロキソプロフェン","ロキソプロフェ"],
+  ["アセトアミノフェン","アセトアミノフェン"],["簡易懸濁","簡易圏濁"]
+];
+
+const S = {
+  caseId:"tanaka", mode:"voice", phase:"idle", fmt:"json",
+  utts:[], corrected:false, confirmed:false, curated:true,
+  rec:{on:false, sec:0, timer:null, real:false, stream:null, ac:null, an:null},
+  metrics:{asrDemo:0, llmDemo:0, chars:0},
+  log:[]
+};
+const CASE = () => CASES.find(c => c.id === S.caseId);
+
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ---------- 利用ログ ---------- */
+function logAdd(action, detail, time){
+  const now = new Date();
+  S.log.unshift({t: time || (pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds())),
+                 who: OPERATOR.id, target: PTID[S.caseId] || "-", action, detail});
+  renderLog();
+}
+function renderLog(){
+  $("logBody").innerHTML = S.log.map(r =>
+    `<tr><td class="t">${esc(r.t)}</td><td class="t">${esc(r.who)}</td><td class="t">${esc(r.target)}</td><td>${esc(r.action)}</td><td>${esc(r.detail)}</td></tr>`
+  ).join("");
+  $("logCount").textContent = S.log.length + " 件";
+}
+function seedLog(){
+  S.log = [
+    {t:"14:52:48", who:"PH-003", target:"PT-0142", action:"薬歴下書き作成", detail:"生成 3.4s（デモ）／検証 要確認 2 件"},
+    {t:"14:52:44", who:"PH-003", target:"PT-0142", action:"文字起こし完了", detail:"1,186 文字／音声 4:42"},
+    {t:"14:52:01", who:"PH-003", target:"PT-0142", action:"音声メモ取り込み", detail:"端末内で処理（外部送信なし）"},
+    {t:"14:51:30", who:"PH-003", target:"PT-0142", action:"患者台帳 参照", detail:"処方・検査値・前回薬歴"},
+    {t:"10:02:17", who:"PH-003", target:"PT-0087", action:"確定・RPA 連携", detail:"outbox へ JSON 書き出し"},
+    {t:"09:51:03", who:"PH-003", target:"PT-0087", action:"薬歴下書き作成", detail:"生成 21.8s（実機）"},
+    {t:"08:42:10", who:"SYS",    target:"-",        action:"起動・モデル読込", detail:"whisper-large-v3-turbo / qwen2.5-14b-instruct-q4"}
+  ];
+  renderLog();
+}
+
+/* ---------- 患者台帳の描画 ---------- */
+function renderPatients(){
+  $("ptList").innerHTML = CASES.map(c => `
+    <button class="pt" type="button" data-id="${c.id}" aria-pressed="${c.id === S.caseId}">
+      <span class="pt-av" aria-hidden="true">${c.initial}</span>
+      <span class="pt-main">
+        <span class="pt-name">${esc(c.name)}<span style="font-weight:400;color:var(--ink-3)"> ${c.age}歳 ${c.sex}</span></span>
+        <span class="pt-meta">${esc(c.setting)}</span>
+      </span>
+    </button>`).join("");
+  $("ptList").querySelectorAll(".pt").forEach(b =>
+    b.addEventListener("click", () => selectCase(b.dataset.id)));
+}
+function renderCase(){
+  const c = CASE();
+  $("ptInfo").innerHTML = `
+    <dt>患者ID</dt><dd class="num">${PTID[c.id]}</dd>
+    <dt>介護度</dt><dd>${esc(c.care)}</dd>
+    <dt>主病名</dt><dd>${c.dx.map(esc).join("、")}</dd>
+    <dt>主治医</dt><dd>${esc(c.doctor)}</dd>
+    <dt>前回訪問</dt><dd class="num">${esc(c.lastVisit)}</dd>
+    <dt>本日</dt><dd class="num">${esc(c.visitTime)}</dd>`;
+  $("ptRx").innerHTML = c.rx.map(r => `
+    <li><span class="rx-name">${esc(r.name)}</span><span class="rx-left">残 ${esc(r.left)}</span>
+        <span class="rx-dose">${esc(r.dose)}</span></li>`).join("");
+  $("labDate").textContent = c.labDate;
+  $("ptLabs").innerHTML = c.labs.map(l =>
+    `<span class="lab${l.abn ? " abn" : ""}">${esc(l.k)} <b>${esc(l.v)}</b> <span style="opacity:.65">${esc(l.u || "")}</span></span>`).join("");
+  $("ptPrev").textContent = c.prev;
+  $("outPath").textContent = "書き出し先: /Users/pharmacy/Handoff/outbox/" +
+    TODAY.replace(/-/g, "") + "_" + PTID[c.id] + "_soap." + (S.fmt === "txt" ? "txt" : S.fmt);
+}
+
+/* ---------- 文字起こしの描画 ---------- */
+function rawOf(text){
+  let out = text;
+  RAW_ERRORS.forEach(([ok, bad]) => { if (ok !== bad) out = out.split(ok).join(bad); });
+  return out;
+}
+function renderTranscript(caret){
+  const rows = S.utts.map(u => {
+    let tx = esc(u.text);
+    if (S.corrected) RAW_ERRORS.forEach(([ok, bad]) => {
+      if (ok !== bad && tx.includes(ok)) tx = tx.split(ok).join(`<mark>${ok}</mark>`);
+    });
+    return `<div class="utt ${u.sp}"><span class="sp">${SPK[u.sp]}</span><span class="tx">${tx}</span></div>`;
+  });
+  $("transcript").innerHTML = rows.join("") + (caret ? '<div class="utt"><span class="sp"></span><span class="tx caret"></span></div>' : "");
+  $("transcript").scrollTop = $("transcript").scrollHeight;
+  const chars = S.utts.reduce((n, u) => n + u.text.length, 0);
+  S.metrics.chars = chars;
+  $("mChars").textContent = chars.toLocaleString("ja-JP") + " 文字";
+}
+function transcriptText(){
+  return S.utts.map(u => SPK[u.sp] + "：" + u.text).join("\n");
+}
+function sourceText(){
+  return S.mode === "text" ? $("keyInput").value : transcriptText();
+}
+
+/* ---------- 波形 ---------- */
+let waveData = new Array(110).fill(0.03);
+function drawWave(){
+  const cv = $("wave"), ctx = cv.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = cv.clientWidth || 600, h = 40;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  ctx.fillStyle = (S.rec.on ? css.getPropertyValue("--shu") : css.getPropertyValue("--line-2")).trim();
+  const n = waveData.length, bw = Math.max(1.5, w / n - 1.6);
+  for (let i = 0; i < n; i++){
+    const v = Math.max(0.03, waveData[i]);
+    const bh = Math.max(2, v * (h - 6));
+    ctx.fillRect(i * (w / n), (h - bh) / 2, bw, bh);
+  }
+}
+function waveLoop(){
+  if (!S.rec.on) return;
+  let level;
+  if (S.rec.real && S.rec.an){
+    const buf = new Uint8Array(S.rec.an.frequencyBinCount);
+    S.rec.an.getByteFrequencyData(buf);
+    let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i];
+    level = Math.min(1, (sum / buf.length) / 90);
+  } else {
+    const t = Date.now() / 260;
+    level = 0.18 + 0.42 * Math.abs(Math.sin(t)) * (0.55 + 0.45 * Math.random());
+  }
+  waveData.push(level); waveData.shift();
+  drawWave();
+  requestAnimationFrame(waveLoop);
+}
+
+/* ---------- 録音 ---------- */
+async function startRec(){
+  S.rec.real = false;
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ac = new AC(); const src = ac.createMediaStreamSource(stream);
+      const an = ac.createAnalyser(); an.fftSize = 512; src.connect(an);
+      Object.assign(S.rec, {real:true, stream, ac, an});
+    }
+  } catch (e) { S.rec.real = false; }
+  S.rec.on = true; S.rec.sec = 0; S.phase = "recording";
+  $("recBox").classList.add("active");
+  $("recBtn").innerHTML = '<span class="dot live"></span>録音停止';
+  $("recHint").innerHTML = S.rec.real
+    ? "マイクから録音しています。<b>音声は端末内のみで扱い、文字起こし後に自動削除されます。</b>"
+    : "マイクを使えない環境のため、<b>架空患者のサンプル音声（4:42）</b>で動作を再現しています。";
+  S.rec.timer = setInterval(() => { S.rec.sec++; $("recTime").textContent = mmss(S.rec.sec); }, 1000);
+  waveLoop();
+  logAdd("音声メモ取り込み", "録音開始（端末内処理）");
+}
+function stopRecHw(){
+  S.rec.on = false; clearInterval(S.rec.timer);
+  if (S.rec.stream) S.rec.stream.getTracks().forEach(t => t.stop());
+  if (S.rec.ac) { try { S.rec.ac.close(); } catch(e){} }
+  Object.assign(S.rec, {stream:null, ac:null, an:null});
+  $("recBox").classList.remove("active");
+  $("recBtn").innerHTML = '<span class="dot"></span>録音開始';
+  drawWave();
+}
+async function stopRec(){
+  const sec = S.rec.sec, wasReal = S.rec.real;
+  stopRecHw();
+  $("recHint").innerHTML = wasReal
+    ? `録音 ${mmss(sec)} を取得しました。<b>デモでは端末内 Whisper の代わりにサンプル会話（4:42）の文字起こし結果を表示します。</b>`
+    : "サンプル音声（4:42）を読み込みました。";
+  await transcribe();
+}
+
+/* ---------- 文字起こし ---------- */
+async function transcribe(){
+  const c = CASE();
+  S.phase = "transcribing"; S.corrected = false; S.utts = [];
+  $("asrState").textContent = "処理中";
+  $("stepNo1").classList.add("done");
+  $("mAudio").textContent = "音声 " + mmss(c.audioSec);
+  const bar = $("asrProg").firstElementChild; bar.style.width = "0%";
+  const t0 = performance.now();
+  const raw = c.transcript.map(([sp, text]) => ({sp, text: rawOf(text)}));
+  for (let i = 0; i < raw.length; i++){
+    S.utts.push(raw[i]);
+    renderTranscript(true);
+    bar.style.width = Math.round((i + 1) / raw.length * 100) + "%";
+    await sleep(58);
+  }
+  renderTranscript(false);
+  const demoSec = (performance.now() - t0) / 1000;
+  S.metrics.asrDemo = demoSec;
+  const realSec = +(c.audioSec / 15.1).toFixed(1);
+  $("mAsrTime").textContent = "所要 " + demoSec.toFixed(1) + "s（デモ）";
+  $("mRtf").textContent = "本番想定 約" + realSec + "s / 15.1倍速";
+  $("asrState").textContent = "完了";
+  S.phase = "transcribed";
+  ["editTransBtn","dictBtn","genBtn"].forEach(id => $(id).disabled = false);
+  logAdd("文字起こし完了", S.metrics.chars.toLocaleString("ja-JP") + " 文字／音声 " + mmss(c.audioSec));
+}
+
+/* ---------- 入力テキストからの合成（自由入力・編集時） ---------- */
+function extractVitals(t){
+  const o = {}; let m;
+  if ((m = t.match(/(?:血圧|BP)[^0-9]{0,8}(\d{2,3})\s*(?:の|\/|-|－)\s*(\d{2,3})/))) o.bp = m[1] + "/" + m[2];
+  else if ((m = t.match(/上が\s*(\d{2,3})[^0-9]{0,8}下が\s*(\d{2,3})/))) o.bp = m[1] + "/" + m[2];
+  if ((m = t.match(/脈(?:拍)?(?:は)?\s*(?:が)?\s*(\d{2,3})/))) o.p = m[1];
+  if ((m = t.match(/(?:体温|BT)(?:は)?\s*(\d{2}(?:\.\d)?)/))) o.bt = m[1];
+  if ((m = t.match(/(?:SpO2|酸素飽和度|酸素火和度)(?:は)?\s*(\d{2,3})/))) o.spo2 = m[1];
+  if ((m = t.match(/(\d{2,3}(?:\.\d)?)\s*(?:キロ|kg|ｋｇ)/))) o.wt = m[1];
+  if ((m = t.match(/NRS\s*(\d{1,2})/i))) o.nrs = m[1];
+  if ((m = t.match(/(?:次回|次).{0,6}?(\d{1,2})\s*月\s*(\d{1,2})\s*日/))) o.next = "2026-" + pad(m[1]) + "-" + pad(m[2]);
+  else if ((m = t.match(/次回[^0-9]{0,8}(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/))) o.next = m[1] + "-" + pad(m[2]) + "-" + pad(m[3]);
+  return o;
+}
+function extractLeftovers(t, c){
+  const out = [];
+  c.rx.forEach(r => {
+    const key = r.name.replace(/[0-9].*$/, "").replace(/錠|注|テープ|OD|Na/g, "").trim().slice(0, 5);
+    if (!key) return;
+    const re = new RegExp(key.split("").join("\\s?") + "[^。\\n]{0,16}?(\\d+)\\s*(錠|枚|本|包|単位)");
+    const m = t.match(re);
+    if (m) out.push(r.name + " " + m[1] + m[2]);
+  });
+  return out;
+}
+function synthesize(text, c){
+  const v = extractVitals(text);
+  const left = extractLeftovers(text, c);
+  const lines = text.split(/[\n。]/).map(s => s.trim()).filter(s => s.length > 3);
+  const said = lines.filter(l => /^(患者|家族・職員)：/.test(l)).map(l => l.replace(/^[^：]+：/, ""));
+  const subj = (said.length ? said : lines.filter(l =>
+    /痛|眠|食べ|食事|忘れ|ふらつ|めまい|つらい|困|便|むせ|汗|震え|あざ|紫斑|体重|だるい|不安/.test(l)));
+  const S_ = subj.slice(0, 7).map(s => "・" + s.replace(/^・/, "").replace(/。$/, "") + "。");
+
+  const O_ = ["・訪問：" + c.visitTime + "／" + c.setting];
+  const vit = [];
+  if (v.bp) vit.push("血圧" + v.bp + "mmHg");
+  if (v.p) vit.push("脈拍" + v.p + "回/分");
+  if (v.bt) vit.push("体温" + v.bt + "℃");
+  if (v.spo2) vit.push("SpO2 " + v.spo2 + "%");
+  if (vit.length) O_.push("・バイタル：" + vit.join("、"));
+  if (v.wt) O_.push("・体重：" + v.wt + "kg");
+  if (v.nrs) O_.push("・疼痛：NRS " + v.nrs + "/10");
+  if (left.length) O_.push("・残薬：" + left.join("、"));
+  O_.push("・検査値（" + c.labDate + "）：" + c.labs.map(l => l.k + " " + l.v + (l.u ? l.u : "")).join("、"));
+
+  const hits = KB.filter(k => k.re.test(text));
+  const A_ = hits.slice(0, 6).map(k => "・" + k.a);
+  if (!A_.length) A_.push("・入力された情報からは薬学的評価を導く所見が抽出できなかった。所見を追記してください。");
+  const P_ = hits.slice(0, 6).map(k => "・" + k.p);
+  P_.push("・次回訪問：" + (v.next || c.extras.next));
+  return {s: S_.join("\n"), o: O_.join("\n"), a: A_.join("\n"), p: P_.join("\n")};
+}
+
+/* ---------- SOAP 生成 ---------- */
+const PANES = [["soapS","s"],["soapO","o"],["soapA","a"],["soapP","p"]];
+function stage(name){
+  const order = ["pre","norm","infer","verify"];
+  $("genStage").querySelectorAll("span[data-st]").forEach(s => {
+    if (name === "done") { s.className = "done"; return; }
+    const i = order.indexOf(s.dataset.st), cur = order.indexOf(name);
+    s.className = i < cur ? "done" : (i === cur ? "on" : "");
+  });
+}
+async function generate(){
+  const c = CASE();
+  const src = sourceText();
+  /* 手修正や自由入力があれば、入力テキストからの合成経路に切り替える */
+  S.curated = (S.mode === "voice") && S.utts.length === c.transcript.length &&
+    S.utts.every((u, i) => u.text === c.transcript[i][1] || u.text === rawOf(c.transcript[i][1]));
+  const draft = S.curated ? c.soap : synthesize(src, c);
+  S.confirmed = false;
+  S.phase = "generating";
+  $("llmState").textContent = "生成中";
+  $("stepNo2").classList.add("done");
+  ["regenBtn","styleBtn","confirmBtn"].forEach(id => $(id).disabled = true);
+  PANES.forEach(([id]) => $(id).value = "");
+  const bar = $("llmProg").firstElementChild; bar.style.width = "0%";
+  const t0 = performance.now();
+
+  stage("pre");  bar.style.width = "8%";  await sleep(260);
+  stage("norm"); bar.style.width = "18%"; await sleep(320);
+  stage("infer");
+  const total = PANES.reduce((n, [, k]) => n + draft[k].length, 0);
+  let done = 0;
+  for (const [id, k] of PANES){
+    const txt = draft[k], ta = $(id);
+    for (let i = 0; i < txt.length; i += 14){
+      ta.value = txt.slice(0, i + 14);
+      ta.scrollTop = ta.scrollHeight;
+      done += 14;
+      bar.style.width = (18 + Math.min(72, done / total * 72)) + "%";
+      $("tokRate").textContent = "26.4 tok/s（本番想定）";
+      updateCounts();
+      await sleep(11);
+    }
+    ta.value = txt; updateCounts();
+    autoGrow(ta);
+  }
+  stage("verify"); bar.style.width = "92%"; await sleep(340);
+
+  $("exNext").value = (S.curated ? c.extras.next : (extractVitals(src).next || c.extras.next));
+  $("exFee").selectedIndex = c.extras.fee;
+  $("exLeft").value = S.curated ? c.extras.left : (extractLeftovers(src, c).join("／") || "");
+  $("exTrace").value = S.curated ? c.extras.trace : "";
+  autoGrow($("exTrace"));
+
+  const demoSec = (performance.now() - t0) / 1000;
+  S.metrics.llmDemo = demoSec;
+  bar.style.width = "100%";
+  stage("done");
+  $("llmState").textContent = "生成 " + demoSec.toFixed(1) + "s（デモ）／本番想定 約22s";
+  S.phase = "drafted";
+  ["regenBtn","styleBtn","confirmBtn"].forEach(id => $(id).disabled = false);
+  $("stepNo3").classList.add("done");
+  const w = verify();
+  renderOut();
+  logAdd("薬歴下書き作成", "生成 " + demoSec.toFixed(1) + "s（デモ）／検証 要確認 " + w + " 件");
+}
+
+function autoGrow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(520, ta.scrollHeight + 4) + "px"; }
+function updateCounts(){
+  [["soapS","cS"],["soapO","cO"],["soapA","cA"],["soapP","cP"]].forEach(([a, b]) =>
+    $(b).textContent = $(a).value.length + "字");
+}
+
+/* ---------- 検証 ---------- */
+const UNIT = "mmHg|回\\/分|℃|%|mg\\/dL|mL\\/min|kg|錠|枚|本|単位|mg|g\\/dL|点|mEq\\/L|mL|μg";
+function soapText(){ return PANES.map(([id]) => $(id).value).join("\n"); }
+function corpus(){
+  const c = CASE();
+  return [sourceText(), c.visitTime, c.labDate, c.prev, c.extras.next, String(c.age),
+    c.labs.map(l => l.k + l.v + (l.u || "")).join(" "),
+    c.rx.map(r => r.name + r.dose + r.left).join(" "), $("exNext").value].join("\n");
+}
+function numbersIn(t){
+  const out = [];
+  (t.match(new RegExp("(\\d+(?:\\.\\d+)?)\\s*(?:" + UNIT + ")", "g")) || []).forEach(m => out.push(m.trim()));
+  (t.match(/\d{2,3}\/\d{2,3}/g) || []).forEach(m => out.push(m));
+  return [...new Set(out)];
+}
+/* 入力に直接ない数値が、入力値どうしの差として説明できるか（体重減少量など） */
+function diffOf(x, nums){
+  for (let i = 0; i < nums.length; i++)
+    for (let j = i + 1; j < nums.length; j++){
+      const d = Math.round(Math.abs(nums[i] - nums[j]) * 10) / 10;
+      if (d > 0 && Math.abs(d - x) < 0.05)
+        return Math.max(nums[i], nums[j]) + " − " + Math.min(nums[i], nums[j]);
+    }
+  return null;
+}
+function verify(){
+  const c = CASE(), sp = soapText(), corp = corpus(), flags = [];
+  const nums = numbersIn(sp);
+  const cn = [...new Set(corp.match(/\d+(?:\.\d+)?/g) || [])].map(Number);
+  const derived = [], bad = [];
+  nums.forEach(tok => {
+    const parts = tok.match(/\d+(?:\.\d+)?/g) || [];
+    const missing = parts.filter(p => !corp.includes(p));
+    if (!missing.length) return;
+    if (missing.every(p => diffOf(Number(p), cn))) derived.push(tok + "（" + missing.map(p => diffOf(Number(p), cn)).join("、") + "）");
+    else bad.push(tok);
+  });
+  if (nums.length === 0) flags.push({t:"warn", title:"数値の記載がありません", body:"バイタル・残薬などの客観的情報を追記してください。"});
+  else if (bad.length === 0) flags.push({t:"ok", title:"数値 " + nums.length + " 件すべてに入力側の根拠あり", body:"文字起こし・患者台帳・検査値と照合しました（入力に根拠のない数値の生成を検出する仕組み）。"});
+  else flags.push({t:"bad", title:"根拠が確認できない数値 " + bad.length + " 件", body:"「" + bad.slice(0, 4).join("／") + "」は入力に見当たりません。削除または出典の追記が必要です。"});
+  if (derived.length) flags.push({t:"warn", title:"入力値から算出された数値 " + derived.length + " 件",
+    body:"直接の記載はなく、入力値の差として一致しました。" + derived.slice(0, 3).join("／") + " — 計算が意図どおりか確認してください。"});
+
+  const req = [
+    ["訪問日時", /訪問[：:]/.test($("soapO").value)],
+    ["バイタル", /mmHg|℃/.test($("soapO").value)],
+    ["残薬・服薬状況", /残薬|服薬|服用/.test($("soapO").value + $("soapS").value)],
+    ["薬学的評価", $("soapA").value.length >= 60],
+    ["指導内容", /説明|指導|依頼|提案|報告/.test($("soapP").value)],
+    ["次回訪問", /次回/.test($("soapP").value) || !!$("exNext").value]
+  ];
+  const miss = req.filter(r => !r[1]).map(r => r[0]);
+  flags.push(miss.length
+    ? {t:"warn", title:"未記載の項目 " + miss.length + " 件", body:"不足：" + miss.join("、")}
+    : {t:"ok", title:"必須項目 " + req.length + "/" + req.length + " 件を記載", body:"訪問日時・バイタル・残薬・評価・指導内容・次回訪問"});
+
+  const ng = sp.match(/と診断|確定診断|絶対に|必ず治|完治する/g);
+  flags.push(ng
+    ? {t:"bad", title:"薬剤師が用いるべきでない表現", body:"「" + [...new Set(ng)].join("／") + "」を含みます。診断的な断定表現を避けてください。"}
+    : {t:"ok", title:"診断的な断定表現なし", body:"評価は可能性・疑いの表現に留まっています。"});
+
+  const idhit = [c.name, c.name.replace(/\s/g, ""), c.kana].filter(x => sp.includes(x));
+  const tel = /0\d{1,3}-\d{2,4}-\d{4}/.test(sp);
+  flags.push((idhit.length || tel)
+    ? {t:"bad", title:"本文に個人識別情報が含まれています", body:"氏名・連絡先は本文に書かず、患者ID（" + PTID[c.id] + "）で管理してください。"}
+    : {t:"ok", title:"本文に氏名・連絡先の記載なし", body:"患者の特定は患者ID（" + PTID[c.id] + "）で行う運用に適合しています。"});
+
+  if (S.curated) c.checks.forEach(k => flags.push({t:k.t, title:k.title, body:k.body}));
+  flags.push({t:"ok", title:"患者データの外部送信 0 件", body:"文字起こし・生成・検証をすべて端末内で実行しました。"});
+
+  const warn = flags.filter(f => f.t !== "ok").length;
+  $("verifySum").textContent = "自動チェック " + flags.length + " 項目／要確認 " + warn + " 件";
+  $("flags").innerHTML = flags.map(f =>
+    `<li class="${f.t}"><span class="mk">${f.t === "ok" ? "✓" : (f.t === "bad" ? "!" : "▲")}</span>
+     <div><b>${esc(f.title)}</b><small>${esc(f.body)}</small></div></li>`).join("");
+  $("egressNote").textContent = "文字起こし " + S.metrics.chars.toLocaleString("ja-JP") +
+    " 文字・生成 " + soapText().length.toLocaleString("ja-JP") + " 文字をすべて端末内で処理";
+  return warn;
+}
+
+/* ---------- RPA 受け渡し ---------- */
+function payload(){
+  const c = CASE();
+  return {
+    schema:"soap-handoff/1.0",
+    generated_at: TODAY + "T14:52:48+09:00",
+    device:"macmini-pharm-01",
+    operator:{id:OPERATOR.id, name:OPERATOR.name, role:"薬剤師"},
+    patient:{id:PTID[c.id], age:c.age, sex:c.sex},
+    visit:{date:TODAY, schedule:c.visitTime, place:c.setting, fee_category:$("exFee").value},
+    soap:{s:$("soapS").value, o:$("soapO").value, a:$("soapA").value, p:$("soapP").value},
+    next_visit:$("exNext").value,
+    remaining_drugs:$("exLeft").value,
+    tracing_report:$("exTrace").value,
+    verification:{items:$("flags").children.length,
+      warnings:[...$("flags").children].filter(li => !li.classList.contains("ok")).length,
+      confirmed_by: S.confirmed ? OPERATOR.id : null,
+      confirmed_at: S.confirmed ? TODAY + "T14:55:02+09:00" : null},
+    engine:{asr:"whisper-large-v3-turbo", llm:"qwen2.5-14b-instruct-q4", runtime:"MLX",
+      audio_seconds:c.audioSec, external_transmission:0}
+  };
+}
+function outText(){
+  const p = payload(), c = CASE();
+  if (S.fmt === "json") return JSON.stringify(p, null, 2);
+  if (S.fmt === "csv"){
+    const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""').replace(/\n/g, "\\n") + '"';
+    const head = ["patient_id","visit_date","fee_category","s","o","a","p","next_visit","remaining_drugs","confirmed_by"];
+    const row = [p.patient.id, p.visit.date, p.visit.fee_category, p.soap.s, p.soap.o, p.soap.a, p.soap.p,
+      p.next_visit, p.remaining_drugs, p.verification.confirmed_by || ""];
+    return head.join(",") + "\n" + row.map(q).join(",");
+  }
+  return ["患者ID：" + p.patient.id + "／訪問：" + c.visitTime,
+    "【S】\n" + p.soap.s, "【O】\n" + p.soap.o, "【A】\n" + p.soap.a, "【P】\n" + p.soap.p,
+    "──────────",
+    "次回訪問：" + p.next_visit, "残薬・処方提案：" + p.remaining_drugs,
+    "算定区分：" + p.visit.fee_category,
+    "確認薬剤師：" + (p.verification.confirmed_by || "（未確定）")].join("\n\n");
+}
+function renderOut(){
+  $("outBox").textContent = outText();
+  const c = CASE();
+  $("outPath").textContent = "書き出し先: /Users/pharmacy/Handoff/outbox/" + TODAY.replace(/-/g, "") +
+    "_" + PTID[c.id] + "_soap." + (S.fmt === "txt" ? "txt" : S.fmt) + (S.confirmed ? "（書き出し済み）" : "（確定待ち）");
+}
+
+/* ---------- 画面の初期化と操作 ---------- */
+function selectCase(id){
+  if (S.rec.on) stopRecHw();
+  S.caseId = id; S.corrected = false; S.confirmed = false;
+  $("ptList").querySelectorAll(".pt").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === id)));
+  renderCase();
+  S.utts = []; renderTranscript(false);
+  PANES.forEach(([i]) => { $(i).value = ""; });
+  updateCounts();
+  ["editTransBtn","dictBtn","genBtn","regenBtn","styleBtn","confirmBtn"].forEach(i => $(i).disabled = true);
+  ["stepNo1","stepNo2","stepNo3"].forEach(i => $(i).classList.remove("done"));
+  $("asrState").textContent = "待機中"; $("llmState").textContent = "未生成";
+  $("asrProg").firstElementChild.style.width = "0%";
+  $("llmProg").firstElementChild.style.width = "0%";
+  ["mAsrTime","mRtf"].forEach((i, k) => $(i).textContent = k ? "本番想定 —" : "所要 —");
+  $("mAudio").textContent = "音声 —"; $("mChars").textContent = "— 文字"; $("tokRate").textContent = "";
+  stage("pre"); $("genStage").querySelectorAll("span[data-st]").forEach(s => s.className = "");
+  $("exTrace").value = ""; $("exLeft").value = ""; $("exNext").value = "";
+  $("flags").innerHTML = '<li><span class="mk">·</span><div><b>下書きを作成すると検証結果が表示されます</b><small>数値の根拠照合・必須項目・禁止表現・個人識別子を自動チェック</small></div></li>';
+  $("verifySum").textContent = "—";
+  $("outBox").textContent = "下書きを作成すると、RPA へ渡すデータが生成されます。";
+  $("recTime").textContent = "0:00";
+  waveData = new Array(110).fill(0.03); drawWave();
+  logAdd("患者台帳 参照", "処方・検査値・前回薬歴");
+}
+function setMode(m){
+  S.mode = m;
+  $("modeVoice").setAttribute("aria-pressed", String(m === "voice"));
+  $("modeText").setAttribute("aria-pressed", String(m === "text"));
+  $("voicePane").hidden = m !== "voice";
+  $("textPane").hidden = m === "voice";
+  $("genBtn").disabled = m === "text" ? $("keyInput").value.trim().length < 10 : S.utts.length === 0;
+  if (m === "text") $("asrState").textContent = "要点メモ入力";
+}
+
+function boot(){
+  renderPatients(); renderCase(); seedLog();
+  $("quickChips").innerHTML = QUICK.map(([l, v]) =>
+    `<button type="button" data-v="${esc(v)}">${esc(l)}</button>`).join("");
+  $("quickChips").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    const ta = $("keyInput"); ta.value += b.dataset.v; ta.focus();
+    $("genBtn").disabled = ta.value.trim().length < 10;
+  }));
+
+  $("recBtn").addEventListener("click", () => S.rec.on ? stopRec() : startRec());
+  $("sampleBtn").addEventListener("click", () => { if (S.rec.on) stopRecHw(); transcribe(); });
+  $("demoAllBtn").addEventListener("click", async () => {
+    if (S.rec.on) stopRecHw();
+    setMode("voice"); await transcribe(); await sleep(260); applyDict(); await sleep(420); await generate();
+    toast("① 音声 → ② 文字起こし → ③ SOAP 下書きまで実行しました");
+  });
+  $("modeVoice").addEventListener("click", () => setMode("voice"));
+  $("modeText").addEventListener("click", () => setMode("text"));
+  $("keyInput").addEventListener("input", () => $("genBtn").disabled = $("keyInput").value.trim().length < 10);
+
+  $("editTransBtn").addEventListener("click", () => {
+    const t = $("transEdit"), v = $("transcript");
+    if (t.hidden){
+      t.value = S.utts.map(u => SPK[u.sp] + "：" + u.text).join("\n");
+      t.hidden = false; v.hidden = true; $("editTransBtn").textContent = "編集を反映";
+    } else {
+      S.utts = t.value.split("\n").filter(l => l.trim()).map(l => {
+        const m = l.match(/^(薬剤師|患者|家族・職員)[：:](.*)$/);
+        const sp = m ? (m[1] === "薬剤師" ? "ph" : m[1] === "患者" ? "pa" : "fa") : "ph";
+        return {sp, text: m ? m[2].trim() : l.trim()};
+      });
+      t.hidden = true; v.hidden = false; $("editTransBtn").textContent = "テキストで編集";
+      renderTranscript(false);
+      logAdd("文字起こし修正", "薬剤師による手修正 " + S.metrics.chars + " 文字");
+      toast("修正を反映しました。下書きは手修正後のテキストから作成されます");
+    }
+  });
+  $("dictBtn").addEventListener("click", applyDict);
+  $("genBtn").addEventListener("click", generate);
+  $("regenBtn").addEventListener("click", generate);
+  $("styleBtn").addEventListener("click", tidy);
+  $("confirmBtn").addEventListener("click", () => {
+    S.confirmed = true; renderOut();
+    logAdd("確定・RPA 連携", "outbox へ " + S.fmt.toUpperCase() + " 書き出し（薬剤師確認済み）");
+    toast("確定し、RPA の取り込みフォルダへ書き出しました");
+  });
+  PANES.forEach(([id]) => $(id).addEventListener("input", () => { updateCounts(); verify(); renderOut(); }));
+  ["exNext","exFee","exLeft","exTrace"].forEach(id => $(id).addEventListener("input", () => { verify(); renderOut(); }));
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+    S.fmt = b.dataset.fmt;
+    document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    renderOut();
+  }));
+  $("copyBtn").addEventListener("click", async () => {
+    const txt = $("outBox").textContent;
+    try { await navigator.clipboard.writeText(txt); toast("コピーしました（" + S.fmt.toUpperCase() + "）"); }
+    catch (e) {
+      const r = document.createRange(); r.selectNodeContents($("outBox"));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      toast("出力を選択しました。Ctrl+C（Mac は ⌘C）でコピーしてください");
+    }
+  });
+  $("themeBtn").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    try { localStorage.setItem("soapTheme", dark ? "light" : "dark"); } catch (e) {}
+    drawWave();
+  });
+  try { const th = localStorage.getItem("soapTheme"); if (th) document.documentElement.setAttribute("data-theme", th); } catch (e) {}
+  addEventListener("resize", drawWave);
+  drawWave();
+  openingState();
+}
+function applyDict(){
+  if (!S.utts.length) return;
+  let n = 0;
+  S.utts = S.utts.map(u => {
+    let t = u.text;
+    RAW_ERRORS.forEach(([ok, bad]) => { if (ok !== bad && t.includes(bad)) { t = t.split(bad).join(ok); n++; } });
+    return {sp: u.sp, text: t};
+  });
+  S.corrected = true;
+  renderTranscript(false);
+  $("dictHint").innerHTML = n
+    ? "医薬品名辞書で <b>" + n + " 箇所</b>を補正しました（黄色の箇所）。辞書は薬局の採用医薬品リストから生成します。"
+    : "補正が必要な箇所はありませんでした。";
+  logAdd("辞書補正", "医薬品名・在宅用語 " + n + " 箇所を置換");
+  if (n) toast(n + " 箇所の医薬品名を補正しました");
+}
+function tidy(){
+  PANES.forEach(([id]) => {
+    $(id).value = $(id).value.split("\n").map(l => {
+      let s = l.trim().replace(/\s+/g, " ");
+      if (!s) return "";
+      if (!/^[・\-]/.test(s)) s = "・" + s;
+      s = s.replace(/^[\-]/, "・");
+      s = s.replace(/です。$/, "。").replace(/ます。$/, "。");
+      if (!/[。：:]$/.test(s)) s += "。";
+      return s;
+    }).filter(Boolean).join("\n");
+    autoGrow($(id));
+  });
+  updateCounts(); verify(); renderOut();
+  logAdd("文体整形", "箇条書き・常体へ統一");
+  toast("箇条書きと文体を整えました");
+}
+/* 初期表示：田中ハナの訪問を取り込み済みの状態で開く */
+function openingState(){
+  const c = CASE();
+  S.utts = c.transcript.map(([sp, text]) => ({sp, text: rawOf(text)}));
+  S.corrected = false;
+  renderTranscript(false);
+  $("mAudio").textContent = "音声 " + mmss(c.audioSec);
+  $("mAsrTime").textContent = "所要 2.4s（デモ）";
+  $("mRtf").textContent = "本番想定 約18.7s / 15.1倍速";
+  $("asrState").textContent = "完了";
+  ["stepNo1","stepNo2","stepNo3"].forEach(i => $(i).classList.add("done"));
+  ["editTransBtn","dictBtn","genBtn","regenBtn","styleBtn","confirmBtn"].forEach(i => $(i).disabled = false);
+  PANES.forEach(([id, k]) => { $(id).value = c.soap[k]; autoGrow($(id)); });
+  $("exNext").value = c.extras.next; $("exFee").selectedIndex = c.extras.fee;
+  $("exLeft").value = c.extras.left; $("exTrace").value = c.extras.trace;
+  autoGrow($("exTrace"));
+  S.curated = true;
+  $("llmState").textContent = "生成 3.4s（デモ）／本番想定 約22s";
+  $("llmProg").firstElementChild.style.width = "100%";
+  $("asrProg").firstElementChild.style.width = "100%";
+  $("genStage").querySelectorAll("span[data-st]").forEach(s => s.className = "done");
+  $("tokRate").textContent = "26.4 tok/s（本番想定）";
+  updateCounts(); verify(); renderOut();
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>
